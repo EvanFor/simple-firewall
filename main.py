@@ -154,6 +154,26 @@ async def safe_send(websocket: WebSocket, message: str):
 
 # ================= Mitmproxy 插件 =================
 
+# ================= Mitmproxy 插件 =================
+
+def decode_content(content: bytes) -> str:
+    """尝试将二进制内容解码为字符串，失败则返回提示"""
+    if not content:
+        return ""
+    if len(content) > 50000:  # 限制最大显示长度，防止前端卡死 (50KB)
+        return f"... (数据过大 {len(content)} 字节，仅显示前 50KB) ..."
+
+    try:
+        # 尝试 UTF-8 解码
+        return content.decode('utf-8')
+    except UnicodeDecodeError:
+        try:
+            # 尝试 GBK 解码 (针对部分中文旧网站)
+            return content.decode('gbk')
+        except:
+            return "[二进制数据 / 图片 / 视频 / 加密内容]"
+
+
 class TrafficAddon:
     def request(self, flow: http.HTTPFlow):
         protocol = "HTTPS" if flow.request.scheme == "https" else "HTTP"
@@ -169,6 +189,10 @@ class TrafficAddon:
                 print(f"[防火墙] 已阻断 HTTP 请求：{host}")
                 return
 
+        # 【新增】提取请求内容
+        req_content = decode_content(flow.request.content)
+        req_headers = dict(flow.request.headers)
+
         entry = {
             "id": id(flow),
             "protocol": protocol,
@@ -181,14 +205,28 @@ class TrafficAddon:
             "direction": "OUT",
             "size": len(flow.request.content) if flow.request.content else 0,
             "status": "Pending",
-            "info": f"{flow.request.method} {flow.request.url}"
+            "info": f"{flow.request.method} {flow.request.url}",
+            # 【新增字段】
+            "req_headers": json.dumps(req_headers, ensure_ascii=False, indent=2),
+            "req_body": req_content,
+            "res_headers": "",
+            "res_body": ""
         }
         add_traffic_entry(entry)
 
     def response(self, flow: http.HTTPFlow):
         protocol = "HTTPS" if flow.request.scheme == "https" else "HTTP"
+
+        # 【新增】提取响应内容
+        res_content = decode_content(flow.response.content)
+        res_headers = dict(flow.response.headers)
+
+        # 我们需要更新之前 request 阶段创建的那条日志，把响应内容补全
+        # 由于 WebSocket 是推送新消息，我们这里推送一条“更新”消息，或者简单起见，推送一条新的“响应”记录
+        # 为了在前端能关联查看，我们保持 ID 一致
+
         entry = {
-            "id": id(flow),
+            "id": id(flow),  # 保持 ID 一致，方便前端关联（如果要做关联更新）
             "protocol": protocol,
             "method": "-> 响应",
             "host": flow.request.host,
@@ -199,7 +237,12 @@ class TrafficAddon:
             "direction": "IN",
             "size": len(flow.response.content) if flow.response.content else 0,
             "status": flow.response.status_code,
-            "info": f"状态码：{flow.response.status_code}"
+            "info": f"状态码：{flow.response.status_code}",
+            # 【新增字段】
+            "req_headers": "",  # 响应包里通常不重复存请求头，除非做合并
+            "req_body": "",
+            "res_headers": json.dumps(res_headers, ensure_ascii=False, indent=2),
+            "res_body": res_content
         }
         add_traffic_entry(entry)
 

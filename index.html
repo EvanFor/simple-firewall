@@ -3,10 +3,10 @@
 <html lang="zh-CN">
     <head>
         <meta charset="UTF-8">
-        <title>NetWall 动态防火墙 (地理位置版)</title>
+        <title>NetWall 防火墙 (含内容查看)</title>
         <style>
             body {
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
                 background: #f3f4f6;
                 margin: 0;
                 padding: 20px;
@@ -14,7 +14,7 @@
             }
 
             .container {
-                max-width: 1500px;
+                max-width: 1600px;
                 margin: 0 auto;
             }
 
@@ -60,7 +60,6 @@
                 font-weight: 600;
                 margin-bottom: 8px;
                 font-size: 0.9rem;
-                color: #374151;
             }
 
             .chk-group {
@@ -78,11 +77,6 @@
                 cursor: pointer;
                 font-size: 0.85rem;
                 user-select: none;
-                transition: all 0.2s;
-            }
-
-            .chk-group label:hover {
-                border-color: #2563eb;
             }
 
             .chk-group input:checked + span {
@@ -96,8 +90,6 @@
                 border: 1px solid #d1d5db;
                 border-radius: 4px;
                 box-sizing: border-box;
-                font-family: inherit;
-                background: white;
             }
 
             textarea {
@@ -115,7 +107,6 @@
                 font-weight: 500;
                 width: 100%;
                 margin-top: 10px;
-                transition: background 0.2s;
             }
 
             button:hover {
@@ -157,7 +148,6 @@
                 font-size: 0.75rem;
                 font-weight: 600;
                 text-transform: uppercase;
-                letter-spacing: 0.5px;
             }
 
             .p-http {
@@ -180,11 +170,6 @@
                 color: #9a3412;
             }
 
-            .p-udp {
-                background: #f3e8ff;
-                color: #6b21a8;
-            }
-
             .dir-out {
                 color: #dc2626;
                 font-weight: 600;
@@ -200,73 +185,144 @@
                 color: #16a34a;
                 text-align: center;
                 display: none;
-                font-weight: 500;
                 background: #dcfce7;
                 padding: 8px;
                 border-radius: 4px;
             }
 
-            .tip {
+            /* 详情按钮 */
+            .btn-view {
+                background: #10b981;
+                padding: 4px 8px;
+                font-size: 0.75rem;
+                width: auto;
+                margin: 0;
+            }
+
+            .btn-view:hover {
+                background: #059669;
+            }
+
+            /* 模态框样式 */
+            .modal {
+                display: none;
+                position: fixed;
+                z-index: 1000;
+                left: 0;
+                top: 0;
+                width: 100%;
+                height: 100%;
+                overflow: auto;
+                background-color: rgba(0, 0, 0, 0.5);
+            }
+
+            .modal-content {
+                background-color: #fefefe;
+                margin: 5% auto;
+                padding: 20px;
+                border: 1px solid #888;
+                width: 80%;
+                max-width: 1000px;
+                border-radius: 8px;
+                box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            }
+
+            .close {
+                color: #aaa;
+                float: right;
+                font-size: 28px;
+                font-weight: bold;
+                cursor: pointer;
+            }
+
+            .close:hover {
+                color: black;
+            }
+
+            .modal-header {
+                border-bottom: 1px solid #eee;
+                padding-bottom: 10px;
+                margin-bottom: 15px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .modal-body {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+            }
+
+            .content-box {
+                background: #f8f9fa;
+                padding: 10px;
+                border-radius: 4px;
+                border: 1px solid #e9ecef;
+                max-height: 60vh;
+                overflow-y: auto;
+            }
+
+            .content-box h3 {
+                margin-top: 0;
+                font-size: 1rem;
+                color: #495057;
+                border-bottom: 2px solid #dee2e6;
+                padding-bottom: 5px;
+            }
+
+            pre {
+                white-space: pre-wrap;
+                word-wrap: break-word;
+                font-family: 'Consolas', 'Monaco', monospace;
                 font-size: 0.85rem;
-                color: #6b7280;
-                margin-top: 5px;
-                line-height: 1.5;
+                color: #333;
+                margin: 0;
             }
 
-            .tip code {
-                background: #e5e7eb;
-                padding: 2px 4px;
-                border-radius: 3px;
-                font-family: monospace;
-            }
-
-            /* 地理位置列样式 */
-            .loc-cell {
-                white-space: nowrap;
-                max-width: 180px;
-                overflow: hidden;
-                text-overflow: ellipsis;
+            @media (max-width: 768px) {
+                .modal-body {
+                    grid-template-columns: 1fr;
+                }
             }
         </style>
     </head>
     <body>
         <div class="container">
-            <h1>🛡️ NetWall 动态防火墙 </h1>
+            <h1>🛡️ NetWall 防火墙 </h1>
 
             <div class="card">
-                <h2>⚙️ 实时过滤规则配置</h2>
+                <h2>⚙️ 过滤规则</h2>
                 <div class="grid">
                     <div class="control">
-                        <label>允许的协议 (取消勾选即过滤)</label>
+                        <label>允许协议</label>
                         <div class="chk-group" id="proto-list">
                             <label><input type="checkbox" value="HTTP" checked> <span>HTTP</span></label>
                             <label><input type="checkbox" value="HTTPS" checked> <span>HTTPS</span></label>
                             <label><input type="checkbox" value="DNS"> <span>DNS</span></label>
                             <label><input type="checkbox" value="TCP"> <span>TCP</span></label>
                             <label><input type="checkbox" value="UDP"> <span>UDP</span></label>
-                            <label><input type="checkbox" value="QUIC"> <span>QUIC</span></label>
                         </div>
-                        <div class="tip">💡 默认仅监控 HTTP/HTTPS。如需监控底层流量，请勾选对应协议。</div>
                     </div>
                     <div class="control">
-                        <label>流量方向</label>
+                        <label>方向</label>
                         <select id="direction-select">
-                            <option value="ALL">全部方向</option>
+                            <option value="ALL">全部</option>
                             <option value="OUT">仅出站</option>
                             <option value="IN">仅入站</option>
                         </select>
                     </div>
                     <div class="control">
-                        <label><input type="checkbox" id="enable-domain-block"> 启用域名黑名单</label>
-                        <textarea id="blocked-domains" placeholder="每行一个域名..."></textarea>
-                        <button onclick="saveConfig()">应用更改</button>
-                        <div id="msg">✅ 规则已实时更新！</div>
+                        <label><input type="checkbox" id="enable-domain-block"> 域名黑名单</label>
+                        <textarea id="blocked-domains" placeholder="example.com"></textarea>
+                        <button onclick="saveConfig()">应用</button>
+                        <div id="msg">✅ 已更新</div>
                     </div>
                 </div>
             </div>
 
             <div class="card">
-                <h2>📡 实时流量监控</h2>
+                <h2>📡 实时流量 (点击 👁️ 查看内容)</h2>
                 <div style="overflow-x: auto;">
                     <table>
                         <thead>
@@ -276,118 +332,163 @@
                             <th>协议</th>
                             <th>源 IP</th>
                             <th>目标 IP</th>
-                            <th>🌍 地理位置</th>
-                            <th>主机 / 详情</th>
+                            <th>地理位置</th>
+                            <th>主机 / 路径</th>
                             <th>大小</th>
                             <th>状态</th>
+                            <th>操作</th>
                         </tr>
                         </thead>
                         <tbody id="log-body"></tbody>
                     </table>
                 </div>
-                <div id="empty-tip" style="text-align:center; color:#9ca3af; padding: 20px; display:none;">
-                    暂无流量数据。请配置浏览器代理到 <code>127.0.0.1:8080</code>。
+            </div>
+        </div>
+
+        <div id="detailModal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="modalTitle">请求详情</h2>
+                    <span class="close" onclick="closeModal()">&times;</span>
+                </div>
+                <div class="modal-body">
+                    <div class="content-box">
+                        <h3>📤 请求 (Request)</h3>
+                        <div id="reqInfo" style="margin-bottom:10px; font-size:0.85rem; color:#666;"></div>
+                        <pre id="reqBody">无数据</pre>
+                    </div>
+                    <div class="content-box">
+                        <h3>📥 响应 (Response)</h3>
+                        <div id="resInfo" style="margin-bottom:10px; font-size:0.85rem; color:#666;"></div>
+                        <pre id="resBody">无数据</pre>
+                    </div>
                 </div>
             </div>
         </div>
 
         <script>
             const tbody = document.getElementById('log-body');
-            const msgDiv = document.getElementById('msg');
-            const emptyTip = document.getElementById('empty-tip');
+            const modal = document.getElementById('detailModal');
+            let currentData = {};
 
-            // 简单的国旗映射
-            function getFlag(location) {
-                if (!location) return "";
-                if (location.includes("中国")) return "🇨🇳 ";
-                if (location.includes("美国")) return "🇺🇸 ";
-                if (location.includes("日本")) return "🇯🇵 ";
-                if (location.includes("韩国")) return "🇰🇷 ";
-                if (location.includes("德国")) return "🇩🇪 ";
-                if (location.includes("英国")) return "🇬🇧 ";
-                if (location.includes("法国")) return "🇫🇷 ";
-                if (location.includes("俄罗斯")) return "🇷🇺 ";
-                if (location.includes("局域网") || location.includes("本地")) return "🏠 ";
-                return "🌍 ";
-            }
+            const dataCache = new Map();
 
             async function loadConfig() {
-                try {
-                    const res = await fetch('/api/config');
-                    const cfg = await res.json();
-                    document.querySelectorAll('#proto-list input').forEach(cb => {
-                        cb.checked = cfg.enabled_protocols.includes(cb.value);
-                    });
-                    document.getElementById('direction-select').value = cfg.filter_direction || 'ALL';
-                    document.getElementById('enable-domain-block').checked = cfg.enable_domain_block || false;
-                    document.getElementById('blocked-domains').value = (cfg.blocked_domains || []).join('\n');
-                } catch (err) {
-                    console.error(err);
-                }
+                const res = await fetch('/api/config');
+                const cfg = await res.json();
+                document.querySelectorAll('#proto-list input').forEach(cb => cb.checked = cfg.enabled_protocols.includes(cb.value));
+                document.getElementById('direction-select').value = cfg.filter_direction || 'ALL';
+                document.getElementById('enable-domain-block').checked = cfg.enable_domain_block || false;
+                document.getElementById('blocked-domains').value = (cfg.blocked_domains || []).join('\n');
             }
 
             window.saveConfig = function () {
-                const protocols = Array.from(document.querySelectorAll('#proto-list input:checked')).map(cb => cb.value);
                 const payload = {
-                    enabled_protocols: protocols,
+                    enabled_protocols: Array.from(document.querySelectorAll('#proto-list input:checked')).map(cb => cb.value),
                     filter_direction: document.getElementById('direction-select').value,
                     enable_domain_block: document.getElementById('enable-domain-block').checked,
                     blocked_domains: document.getElementById('blocked-domains').value.split('\n').filter(x => x.trim())
                 };
                 fetch('/api/config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)})
                     .then(() => {
-                        msgDiv.style.display = 'block';
-                        setTimeout(() => msgDiv.style.display = 'none', 2000);
+                        const m = document.getElementById('msg');
+                        m.style.display = 'block';
+                        setTimeout(() => m.style.display = 'none', 2000);
                     });
             };
 
+            function getFlag(loc) {
+                if (!loc) return "";
+                if (loc.includes("中国")) return "🇨🇳 ";
+                if (loc.includes("美国")) return "🇺🇸 ";
+                if (loc.includes("日本")) return "🇯🇵 ";
+                if (loc.includes("局域网")) return "🏠 ";
+                return "🌍 ";
+            }
+
+            function formatJSON(str) {
+                try {
+                    const obj = JSON.parse(str);
+                    return JSON.stringify(obj, null, 2);
+                } catch (e) {
+                    return str;
+                }
+            }
+
+            function openModal(data) {
+                currentData = data;
+                document.getElementById('modalTitle').innerText = `详情：${data.method} ${data.host}`;
+
+                const reqText = data.req_body || "(无请求体)";
+                document.getElementById('reqBody').textContent = formatJSON(reqText);
+                document.getElementById('reqInfo').textContent = `${data.method} ${data.path}\nHost: ${data.host}`;
+
+                const resText = data.res_body || (data.status === 'Pending' ? "(等待响应...)" : "(无响应体)");
+                document.getElementById('resBody').textContent = formatJSON(resText);
+                document.getElementById('resInfo').textContent = `Status: ${data.status || 'Pending'}`;
+
+                modal.style.display = "block";
+            }
+
+            function closeModal() {
+                modal.style.display = "none";
+            }
+
+            window.onclick = function (event) {
+                if (event.target === modal) closeModal();
+            }
+
             function connectWS() {
                 const ws = new WebSocket(`ws://${window.location.host}/ws`);
-                ws.onopen = () => console.log('✅ 连接成功');
+                ws.onopen = () => console.log('✅ 已连接');
                 ws.onclose = () => setTimeout(connectWS, 2000);
                 ws.onmessage = (event) => {
-                    try {
-                        const msg = JSON.parse(event.data);
-                        if (msg.type === 'new_packet') {
-                            const d = msg.data;
-                            const row = document.createElement('tr');
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'new_packet') {
+                        const d = msg.data;
 
-                            let pClass = 'p-tcp';
-                            if (['HTTP', 'HTTPS'].includes(d.protocol)) pClass = 'p-https';
-                            else if (d.protocol === 'DNS') pClass = 'p-dns';
-                            else if (d.protocol === 'UDP') pClass = 'p-udp';
+                        dataCache.set(d.id, d);
+                        if (dataCache.size > 50) dataCache.delete(dataCache.keys().next().value);
 
-                            const dirClass = d.direction === 'OUT' ? 'dir-out' : 'dir-in';
-                            if (emptyTip) emptyTip.style.display = 'none';
+                        const row = document.createElement('tr');
+                        let pClass = ['HTTP', 'HTTPS'].includes(d.protocol) ? 'p-https' : 'p-tcp';
+                        if (d.protocol === 'DNS') pClass = 'p-dns';
 
-                            const flag = getFlag(d.location);
-                            const locText = d.location || '-';
+                        const dirClass = d.direction === 'OUT' ? 'dir-out' : 'dir-in';
+                        const flag = getFlag(d.location);
 
-                            row.innerHTML = `
-                                    <td>${d.timestamp}</td>
-                                    <td class="${dirClass}">${d.direction === 'OUT' ? '出站' : '入站'}</td>
-                                    <td><span class="badge ${pClass}">${d.protocol}</span></td>
-                                    <td>${d.src_ip}</td>
-                                    <td>${d.dst_ip}:${d.dst_port}</td>
-                                    <td class="loc-cell" title="${locText}">${flag}${locText}</td>
-                                    <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${d.host || d.info}">${d.host || d.info}</td>
-                                    <td>${(d.size / 1024).toFixed(1)} KB</td>
-                                    <td>${d.method || d.status}</td>
-                                `;
-                            tbody.insertBefore(row, tbody.firstChild);
-                            if (tbody.children.length > 100) tbody.removeChild(tbody.lastChild);
+                        // 只有 HTTP/HTTPS 且有内容时才显示查看按钮
+                        let viewBtn = '';
+                        if (['HTTP', 'HTTPS'].includes(d.protocol)) {
+                            viewBtn = `<button class="btn-view" onclick='openModalById(${d.id})'>👁️ 查看</button>`;
                         }
-                    } catch (e) {
-                        console.error(e);
+
+                        row.innerHTML = `
+                                <td>${d.timestamp}</td>
+                                <td class="${dirClass}">${d.direction === 'OUT' ? '出站' : '入站'}</td>
+                                <td><span class="badge ${pClass}">${d.protocol}</span></td>
+                                <td>${d.src_ip}</td>
+                                <td>${d.dst_ip}:${d.dst_port}</td>
+                                <td style="font-size:0.85rem;">${flag}${d.location || '-'}</td>
+                                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${d.host}${d.path}">${d.host}${d.path}</td>
+                                <td>${(d.size / 1024).toFixed(1)} KB</td>
+                                <td>${d.method || d.status}</td>
+                                <td>${viewBtn}</td>
+                            `;
+                        tbody.insertBefore(row, tbody.firstChild);
+                        if (tbody.children.length > 100) tbody.removeChild(tbody.lastChild);
                     }
                 };
             }
 
+            window.openModalById = function (id) {
+                const data = dataCache.get(id);
+                if (data) openModal(data);
+                else alert("数据已被清理，无法查看详细内容");
+            };
+
             loadConfig();
             connectWS();
-            setTimeout(() => {
-                if (tbody.children.length === 0 && emptyTip) emptyTip.style.display = 'block';
-            }, 1000);
         </script>
     </body>
 </html>
