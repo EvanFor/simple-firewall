@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8">
+        <title>NetWall 动态防火墙 (地理位置版)</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                background: #f3f4f6;
+                margin: 0;
+                padding: 20px;
+                color: #333;
+            }
+
+            .container {
+                max-width: 1500px;
+                margin: 0 auto;
+            }
+
+            .card {
+                background: white;
+                border-radius: 8px;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+                padding: 20px;
+                margin-bottom: 20px;
+            }
+
+            h1 {
+                margin-top: 0;
+                color: #1f2937;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            h2 {
+                font-size: 1.1rem;
+                color: #4b5563;
+                margin-bottom: 15px;
+                border-left: 4px solid #2563eb;
+                padding-left: 10px;
+            }
+
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 20px;
+            }
+
+            .control {
+                background: #f9fafb;
+                padding: 15px;
+                border-radius: 6px;
+                border: 1px solid #e5e7eb;
+            }
+
+            .control label {
+                display: block;
+                font-weight: 600;
+                margin-bottom: 8px;
+                font-size: 0.9rem;
+                color: #374151;
+            }
+
+            .chk-group {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .chk-group label {
+                font-weight: normal;
+                background: white;
+                border: 1px solid #d1d5db;
+                padding: 6px 12px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 0.85rem;
+                user-select: none;
+                transition: all 0.2s;
+            }
+
+            .chk-group label:hover {
+                border-color: #2563eb;
+            }
+
+            .chk-group input:checked + span {
+                color: #2563eb;
+                font-weight: 600;
+            }
+
+            select, textarea {
+                width: 100%;
+                padding: 8px;
+                border: 1px solid #d1d5db;
+                border-radius: 4px;
+                box-sizing: border-box;
+                font-family: inherit;
+                background: white;
+            }
+
+            textarea {
+                height: 80px;
+                resize: vertical;
+            }
+
+            button {
+                background: #2563eb;
+                color: white;
+                border: none;
+                padding: 10px 15px;
+                border-radius: 4px;
+                cursor: pointer;
+                font-weight: 500;
+                width: 100%;
+                margin-top: 10px;
+                transition: background 0.2s;
+            }
+
+            button:hover {
+                background: #1d4ed8;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 0.85rem;
+            }
+
+            th {
+                text-align: left;
+                padding: 12px 10px;
+                background: #f9fafb;
+                border-bottom: 2px solid #e5e7eb;
+                position: sticky;
+                top: 0;
+                color: #6b7280;
+                font-weight: 600;
+                white-space: nowrap;
+            }
+
+            td {
+                padding: 8px 10px;
+                border-bottom: 1px solid #e5e7eb;
+                font-family: monospace;
+                color: #1f2937;
+            }
+
+            tr:hover {
+                background: #f9fafb;
+            }
+
+            .badge {
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-size: 0.75rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .p-http {
+                background: #dbeafe;
+                color: #1e40af;
+            }
+
+            .p-https {
+                background: #dbeafe;
+                color: #1e40af;
+            }
+
+            .p-dns {
+                background: #d1fae5;
+                color: #065f46;
+            }
+
+            .p-tcp {
+                background: #ffedd5;
+                color: #9a3412;
+            }
+
+            .p-udp {
+                background: #f3e8ff;
+                color: #6b21a8;
+            }
+
+            .dir-out {
+                color: #dc2626;
+                font-weight: 600;
+            }
+
+            .dir-in {
+                color: #16a34a;
+                font-weight: 600;
+            }
+
+            #msg {
+                margin-top: 10px;
+                color: #16a34a;
+                text-align: center;
+                display: none;
+                font-weight: 500;
+                background: #dcfce7;
+                padding: 8px;
+                border-radius: 4px;
+            }
+
+            .tip {
+                font-size: 0.85rem;
+                color: #6b7280;
+                margin-top: 5px;
+                line-height: 1.5;
+            }
+
+            .tip code {
+                background: #e5e7eb;
+                padding: 2px 4px;
+                border-radius: 3px;
+                font-family: monospace;
+            }
+
+            /* 地理位置列样式 */
+            .loc-cell {
+                white-space: nowrap;
+                max-width: 180px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🛡️ NetWall 动态防火墙 </h1>
+
+            <div class="card">
+                <h2>⚙️ 实时过滤规则配置</h2>
+                <div class="grid">
+                    <div class="control">
+                        <label>允许的协议 (取消勾选即过滤)</label>
+                        <div class="chk-group" id="proto-list">
+                            <label><input type="checkbox" value="HTTP" checked> <span>HTTP</span></label>
+                            <label><input type="checkbox" value="HTTPS" checked> <span>HTTPS</span></label>
+                            <label><input type="checkbox" value="DNS"> <span>DNS</span></label>
+                            <label><input type="checkbox" value="TCP"> <span>TCP</span></label>
+                            <label><input type="checkbox" value="UDP"> <span>UDP</span></label>
+                            <label><input type="checkbox" value="QUIC"> <span>QUIC</span></label>
+                        </div>
+                        <div class="tip">💡 默认仅监控 HTTP/HTTPS。如需监控底层流量，请勾选对应协议。</div>
+                    </div>
+                    <div class="control">
+                        <label>流量方向</label>
+                        <select id="direction-select">
+                            <option value="ALL">全部方向</option>
+                            <option value="OUT">仅出站</option>
+                            <option value="IN">仅入站</option>
+                        </select>
+                    </div>
+                    <div class="control">
+                        <label><input type="checkbox" id="enable-domain-block"> 启用域名黑名单</label>
+                        <textarea id="blocked-domains" placeholder="每行一个域名..."></textarea>
+                        <button onclick="saveConfig()">应用更改</button>
+                        <div id="msg">✅ 规则已实时更新！</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📡 实时流量监控</h2>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>方向</th>
+                            <th>协议</th>
+                            <th>源 IP</th>
+                            <th>目标 IP</th>
+                            <th>🌍 地理位置</th>
+                            <th>主机 / 详情</th>
+                            <th>大小</th>
+                            <th>状态</th>
+                        </tr>
+                        </thead>
+                        <tbody id="log-body"></tbody>
+                    </table>
+                </div>
+                <div id="empty-tip" style="text-align:center; color:#9ca3af; padding: 20px; display:none;">
+                    暂无流量数据。请配置浏览器代理到 <code>127.0.0.1:8080</code>。
+                </div>
+            </div>
+        </div>
+
+        <script>
+            const tbody = document.getElementById('log-body');
+            const msgDiv = document.getElementById('msg');
+            const emptyTip = document.getElementById('empty-tip');
+
+            // 简单的国旗映射
+            function getFlag(location) {
+                if (!location) return "";
+                if (location.includes("中国")) return "🇨🇳 ";
+                if (location.includes("美国")) return "🇺🇸 ";
+                if (location.includes("日本")) return "🇯🇵 ";
+                if (location.includes("韩国")) return "🇰🇷 ";
+                if (location.includes("德国")) return "🇩🇪 ";
+                if (location.includes("英国")) return "🇬🇧 ";
+                if (location.includes("法国")) return "🇫🇷 ";
+                if (location.includes("俄罗斯")) return "🇷🇺 ";
+                if (location.includes("局域网") || location.includes("本地")) return "🏠 ";
+                return "🌍 ";
+            }
+
+            async function loadConfig() {
+                try {
+                    const res = await fetch('/api/config');
+                    const cfg = await res.json();
+                    document.querySelectorAll('#proto-list input').forEach(cb => {
+                        cb.checked = cfg.enabled_protocols.includes(cb.value);
+                    });
+                    document.getElementById('direction-select').value = cfg.filter_direction || 'ALL';
+                    document.getElementById('enable-domain-block').checked = cfg.enable_domain_block || false;
+                    document.getElementById('blocked-domains').value = (cfg.blocked_domains || []).join('\n');
+                } catch (err) {
+                    console.error(err);
+                }
+            }
+
+            window.saveConfig = function () {
+                const protocols = Array.from(document.querySelectorAll('#proto-list input:checked')).map(cb => cb.value);
+                const payload = {
+                    enabled_protocols: protocols,
+                    filter_direction: document.getElementById('direction-select').value,
+                    enable_domain_block: document.getElementById('enable-domain-block').checked,
+                    blocked_domains: document.getElementById('blocked-domains').value.split('\n').filter(x => x.trim())
+                };
+                fetch('/api/config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)})
+                    .then(() => {
+                        msgDiv.style.display = 'block';
+                        setTimeout(() => msgDiv.style.display = 'none', 2000);
+                    });
+            };
+
+            function connectWS() {
+                const ws = new WebSocket(`ws://${window.location.host}/ws`);
+                ws.onopen = () => console.log('✅ 连接成功');
+                ws.onclose = () => setTimeout(connectWS, 2000);
+                ws.onmessage = (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.type === 'new_packet') {
+                            const d = msg.data;
+                            const row = document.createElement('tr');
+
+                            let pClass = 'p-tcp';
+                            if (['HTTP', 'HTTPS'].includes(d.protocol)) pClass = 'p-https';
+                            else if (d.protocol === 'DNS') pClass = 'p-dns';
+                            else if (d.protocol === 'UDP') pClass = 'p-udp';
+
+                            const dirClass = d.direction === 'OUT' ? 'dir-out' : 'dir-in';
+                            if (emptyTip) emptyTip.style.display = 'none';
+
+                            const flag = getFlag(d.location);
+                            const locText = d.location || '-';
+
+                            row.innerHTML = `
+                                    <td>${d.timestamp}</td>
+                                    <td class="${dirClass}">${d.direction === 'OUT' ? '出站' : '入站'}</td>
+                                    <td><span class="badge ${pClass}">${d.protocol}</span></td>
+                                    <td>${d.src_ip}</td>
+                                    <td>${d.dst_ip}:${d.dst_port}</td>
+                                    <td class="loc-cell" title="${locText}">${flag}${locText}</td>
+                                    <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${d.host || d.info}">${d.host || d.info}</td>
+                                    <td>${(d.size / 1024).toFixed(1)} KB</td>
+                                    <td>${d.method || d.status}</td>
+                                `;
+                            tbody.insertBefore(row, tbody.firstChild);
+                            if (tbody.children.length > 100) tbody.removeChild(tbody.lastChild);
+                        }
+                    } catch (e) {
+                        console.error(e);
+                    }
+                };
+            }
+
+            loadConfig();
+            connectWS();
+            setTimeout(() => {
+                if (tbody.children.length === 0 && emptyTip) emptyTip.style.display = 'block';
+            }, 1000);
+        </script>
+    </body>
+</html>
