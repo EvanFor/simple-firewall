@@ -369,123 +369,151 @@
         <script>
             const tbody = document.getElementById('log-body');
             const modal = document.getElementById('detailModal');
-            let currentData = {};
-
+            const rowMap = new Map();
             const dataCache = new Map();
 
             async function loadConfig() {
-                const res = await fetch('/api/config');
-                const cfg = await res.json();
-                document.querySelectorAll('#proto-list input').forEach(cb => cb.checked = cfg.enabled_protocols.includes(cb.value));
-                document.getElementById('direction-select').value = cfg.filter_direction || 'ALL';
-                document.getElementById('enable-domain-block').checked = cfg.enable_domain_block || false;
-                document.getElementById('blocked-domains').value = (cfg.blocked_domains || []).join('\n');
+                try {
+                    const res = await fetch('/api/config');
+                    const cfg = await res.json();
+                    document.querySelectorAll('#proto-list input').forEach(cb => cb.checked = cfg.enabled_protocols.includes(cb.value));
+                    document.getElementById('direction-select').value = cfg.filter_direction || 'ALL';
+                    document.getElementById('enable-domain-block').checked = cfg.enable_domain_block || false;
+                    document.getElementById('blocked-domains').value = (cfg.blocked_domains || []).join('\n');
+                } catch(e){}
             }
 
-            window.saveConfig = function () {
+            window.saveConfig = function() {
                 const payload = {
                     enabled_protocols: Array.from(document.querySelectorAll('#proto-list input:checked')).map(cb => cb.value),
                     filter_direction: document.getElementById('direction-select').value,
                     enable_domain_block: document.getElementById('enable-domain-block').checked,
                     blocked_domains: document.getElementById('blocked-domains').value.split('\n').filter(x => x.trim())
                 };
-                fetch('/api/config', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)})
-                    .then(() => {
-                        const m = document.getElementById('msg');
-                        m.style.display = 'block';
-                        setTimeout(() => m.style.display = 'none', 2000);
-                    });
+                fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) })
+                    .then(() => { const m = document.getElementById('msg'); m.style.display='block'; setTimeout(()=>m.style.display='none', 2000); });
             };
 
             function getFlag(loc) {
-                if (!loc) return "";
-                if (loc.includes("中国")) return "🇨🇳 ";
-                if (loc.includes("美国")) return "🇺🇸 ";
-                if (loc.includes("日本")) return "🇯🇵 ";
-                if (loc.includes("局域网")) return "🏠 ";
+                if(!loc) return "";
+                if(loc.includes("中国")) return "🇨🇳 "; if(loc.includes("美国")) return "🇺🇸 ";
+                if(loc.includes("日本")) return "🇯🇵 "; if(loc.includes("局域网")) return "🏠 ";
                 return "🌍 ";
             }
 
             function formatJSON(str) {
-                try {
-                    const obj = JSON.parse(str);
-                    return JSON.stringify(obj, null, 2);
-                } catch (e) {
-                    return str;
-                }
+                if(!str) return "";
+                // 如果是二进制提示，直接返回
+                if(str.startsWith('[') && str.endsWith(']')) return str;
+                try { return JSON.stringify(JSON.parse(str), null, 2); } catch (e) { return str; }
             }
 
-            function openModal(data) {
-                currentData = data;
-                document.getElementById('modalTitle').innerText = `详情：${data.method} ${data.host}`;
+            function openModalById(id) {
+                const d = dataCache.get(id);
+                if(!d) { alert("数据已清理"); return; }
 
-                const reqText = data.req_body || "(无请求体)";
-                document.getElementById('reqBody').textContent = formatJSON(reqText);
-                document.getElementById('reqInfo').textContent = `${data.method} ${data.path}\nHost: ${data.host}`;
+                document.getElementById('modalTitle').innerText = `详情：${d.method} ${d.host}`;
 
-                const resText = data.res_body || (data.status === 'Pending' ? "(等待响应...)" : "(无响应体)");
-                document.getElementById('resBody').textContent = formatJSON(resText);
-                document.getElementById('resInfo').textContent = `Status: ${data.status || 'Pending'}`;
+                // 渲染请求
+                document.getElementById('reqInfo').textContent = `${d.method} ${d.path || ''}\nHost: ${d.host}`;
+                // 如果有 req_body 则显示，否则提示
+                const rBody = d.req_body || (d.direction === 'OUT' ? "(无请求体)" : "(当前是响应包，请求体可能在上一条记录中)");
+                document.getElementById('reqBody').textContent = formatJSON(rBody);
+
+                // 渲染响应
+                document.getElementById('resInfo').textContent = `Status: ${d.status || 'Unknown'}`;
+                let resText = "(无响应体)";
+                if (d.res_body) {
+                    resText = formatJSON(d.res_body);
+                } else if (d.status === 'Pending') {
+                    resText = "(等待响应...)";
+                } else if (d.status) {
+                    resText = `(响应状态 ${d.status}, 但无内容体，可能是 204/304 或图片/视频流)`;
+                }
+                document.getElementById('resBody').textContent = resText;
 
                 modal.style.display = "block";
             }
 
-            function closeModal() {
-                modal.style.display = "none";
-            }
+            function closeModal() { modal.style.display = "none"; }
+            window.onclick = function(event) { if (event.target === modal) closeModal(); }
 
-            window.onclick = function (event) {
-                if (event.target === modal) closeModal();
+            function renderRow(d) {
+                let row = rowMap.get(d.id);
+                let isNew = false;
+
+                if (!row) {
+                    row = document.createElement('tr');
+                    row.id = `row-${d.id}`;
+                    tbody.insertBefore(row, tbody.firstChild);
+                    rowMap.set(d.id, row);
+                    isNew = true;
+
+                    if (tbody.children.length > 100) {
+                        const lastRow = tbody.lastChild;
+                        if(lastRow && lastRow.id) {
+                            const oldId = lastRow.id.replace('row-', '');
+                            rowMap.delete(oldId);
+                            dataCache.delete(oldId);
+                        }
+                        tbody.removeChild(lastRow);
+                    }
+                } else {
+                    row.classList.remove('updated');
+                    void row.offsetWidth;
+                    row.classList.add('updated');
+                }
+
+                dataCache.set(d.id, d);
+
+                let pClass = ['HTTP','HTTPS'].includes(d.protocol) ? 'p-https' : 'p-tcp';
+                if(d.protocol === 'DNS') pClass = 'p-dns';
+                const dirClass = d.direction === 'OUT' ? 'dir-out' : 'dir-in';
+                const flag = getFlag(d.location);
+                const urlDisplay = d.host + (d.path || '');
+
+                const isFinished = d.status !== 'Pending' && d.status !== undefined && d.status !== null;
+
+                const statusDisplay = isFinished ? d.status : (d.method || '⏳ 等待...');
+                const statusColor = isFinished ? '#16a34a' : '#d97706';
+
+                let viewBtn = '';
+                if(['HTTP','HTTPS'].includes(d.protocol)) {
+                    if(isFinished) {
+                        // 只要有状态码，就显示查看按钮
+                        viewBtn = `<button class="btn-view ready" onclick='openModalById(${d.id})'>👁️ 查看</button>`;
+                    } else {
+                        viewBtn = `<span style="color:#999;font-size:0.75rem;">⏳ 解析中...</span>`;
+                    }
+                }
+
+                row.innerHTML = `
+                <td>${d.timestamp}</td>
+                <td class="${dirClass}">${d.direction === 'OUT' ? '出站' : '入站'}</td>
+                <td><span class="badge ${pClass}">${d.protocol}</span></td>
+                <td>${d.src_ip}</td>
+                <td>${d.dst_ip}:${d.dst_port}</td>
+                <td style="font-size:0.85rem;">${flag}${d.location || '-'}</td>
+                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${urlDisplay}">${urlDisplay}</td>
+                <td>${(d.size/1024).toFixed(1)} KB</td>
+                <td style="font-weight:bold; color:${statusColor}">${statusDisplay}</td>
+                <td>${viewBtn}</td>
+            `;
             }
 
             function connectWS() {
                 const ws = new WebSocket(`ws://${window.location.host}/ws`);
-                ws.onopen = () => console.log('✅ 已连接');
+                ws.onopen = () => console.log('✅ WebSocket 已连接');
                 ws.onclose = () => setTimeout(connectWS, 2000);
                 ws.onmessage = (event) => {
-                    const msg = JSON.parse(event.data);
-                    if (msg.type === 'new_packet') {
-                        const d = msg.data;
-
-                        dataCache.set(d.id, d);
-                        if (dataCache.size > 50) dataCache.delete(dataCache.keys().next().value);
-
-                        const row = document.createElement('tr');
-                        let pClass = ['HTTP', 'HTTPS'].includes(d.protocol) ? 'p-https' : 'p-tcp';
-                        if (d.protocol === 'DNS') pClass = 'p-dns';
-
-                        const dirClass = d.direction === 'OUT' ? 'dir-out' : 'dir-in';
-                        const flag = getFlag(d.location);
-
-                        // 只有 HTTP/HTTPS 且有内容时才显示查看按钮
-                        let viewBtn = '';
-                        if (['HTTP', 'HTTPS'].includes(d.protocol)) {
-                            viewBtn = `<button class="btn-view" onclick='openModalById(${d.id})'>👁️ 查看</button>`;
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.type === 'new_packet') {
+                            renderRow(msg.data);
                         }
-
-                        row.innerHTML = `
-                                <td>${d.timestamp}</td>
-                                <td class="${dirClass}">${d.direction === 'OUT' ? '出站' : '入站'}</td>
-                                <td><span class="badge ${pClass}">${d.protocol}</span></td>
-                                <td>${d.src_ip}</td>
-                                <td>${d.dst_ip}:${d.dst_port}</td>
-                                <td style="font-size:0.85rem;">${flag}${d.location || '-'}</td>
-                                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${d.host}${d.path}">${d.host}${d.path}</td>
-                                <td>${(d.size / 1024).toFixed(1)} KB</td>
-                                <td>${d.method || d.status}</td>
-                                <td>${viewBtn}</td>
-                            `;
-                        tbody.insertBefore(row, tbody.firstChild);
-                        if (tbody.children.length > 100) tbody.removeChild(tbody.lastChild);
-                    }
+                    } catch (e) { console.error(e); }
                 };
             }
-
-            window.openModalById = function (id) {
-                const data = dataCache.get(id);
-                if (data) openModal(data);
-                else alert("数据已被清理，无法查看详细内容");
-            };
 
             loadConfig();
             connectWS();

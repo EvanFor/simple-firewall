@@ -174,59 +174,30 @@ def decode_content(content: bytes) -> str:
             return "[二进制数据 / 图片 / 视频 / 加密内容]"
 
 
+# ... (前面的代码不变)
+
 class TrafficAddon:
     def request(self, flow: http.HTTPFlow):
-        protocol = "HTTPS" if flow.request.scheme == "https" else "HTTP"
-        host = flow.request.host
-
-        with config_lock:
-            if not global_config.is_allowed(protocol, "OUT", host):
-                flow.response = http.Response.make(
-                    403,
-                    f"<h1>🛑 已拦截</h1><p>请求 <b>{host}</b> 被防火墙规则阻断。</p>".encode(),
-                    {"Content-Type": "text/html"}
-                )
-                print(f"[防火墙] 已阻断 HTTP 请求：{host}")
-                return
-
-        # 【新增】提取请求内容
+        # 确保这里 req_body 即使是空字符串也要传过去，不要传 None
         req_content = decode_content(flow.request.content)
-        req_headers = dict(flow.request.headers)
-
+        # ... (省略中间代码)
         entry = {
-            "id": id(flow),
-            "protocol": protocol,
-            "method": flow.request.method,
-            "host": host,
-            "path": flow.request.path,
-            "src_ip": flow.client_conn.peername[0],
-            "dst_ip": flow.server_conn.address[0],
-            "dst_port": flow.server_conn.address[1],
-            "direction": "OUT",
-            "size": len(flow.request.content) if flow.request.content else 0,
-            "status": "Pending",
-            "info": f"{flow.request.method} {flow.request.url}",
-            # 【新增字段】
-            "req_headers": json.dumps(req_headers, ensure_ascii=False, indent=2),
+            # ...
             "req_body": req_content,
-            "res_headers": "",
-            "res_body": ""
+            "res_body": "",  # 请求阶段响应体为空字符串
+            # ...
         }
         add_traffic_entry(entry)
 
     def response(self, flow: http.HTTPFlow):
         protocol = "HTTPS" if flow.request.scheme == "https" else "HTTP"
 
-        # 【新增】提取响应内容
+        # 【优化】解码响应内容
         res_content = decode_content(flow.response.content)
         res_headers = dict(flow.response.headers)
 
-        # 我们需要更新之前 request 阶段创建的那条日志，把响应内容补全
-        # 由于 WebSocket 是推送新消息，我们这里推送一条“更新”消息，或者简单起见，推送一条新的“响应”记录
-        # 为了在前端能关联查看，我们保持 ID 一致
-
         entry = {
-            "id": id(flow),  # 保持 ID 一致，方便前端关联（如果要做关联更新）
+            "id": id(flow),
             "protocol": protocol,
             "method": "-> 响应",
             "host": flow.request.host,
@@ -238,9 +209,9 @@ class TrafficAddon:
             "size": len(flow.response.content) if flow.response.content else 0,
             "status": flow.response.status_code,
             "info": f"状态码：{flow.response.status_code}",
-            # 【新增字段】
-            "req_headers": "",  # 响应包里通常不重复存请求头，除非做合并
+            "req_headers": "",
             "req_body": "",
+            # 【关键】即使内容是 "[二进制数据...]" 或 ""，也要传下去，让前端知道请求结束了
             "res_headers": json.dumps(res_headers, ensure_ascii=False, indent=2),
             "res_body": res_content
         }
