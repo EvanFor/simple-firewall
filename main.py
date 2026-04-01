@@ -3,6 +3,9 @@ import json
 import datetime
 import threading
 import socket
+import errno
+import tempfile
+from pathlib import Path
 from typing import List, Dict, Any, Optional, Set
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -45,6 +48,7 @@ traffic_log = []
 MAX_LOG_SIZE = 500
 clients: List[WebSocket] = []
 clients_lock = threading.Lock()
+main_event_loop: Optional[asyncio.AbstractEventLoop] = None
 
 # ================= IP 地理位置逻辑 =================
 
@@ -118,6 +122,34 @@ def determine_direction(src_ip: str, dst_ip: str) -> str:
     return "OUT"
 
 
+def is_port_available(port: int, host: str = "127.0.0.1") -> bool:
+    """检测本机端口是否可监听。"""
+    test_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        test_sock.bind((host, port))
+        return True
+    except OSError as e:
+        if e.errno in (errno.EADDRINUSE, errno.EACCES):
+            return False
+        return False
+    finally:
+        test_sock.close()
+
+
+def resolve_mitm_confdir() -> str:
+    """
+    返回 mitmproxy 可写配置目录，优先项目内目录，失败时回退到系统临时目录。
+    """
+    project_confdir = Path(__file__).resolve().parent / ".mitmproxy"
+    try:
+        project_confdir.mkdir(parents=True, exist_ok=True)
+        return str(project_confdir)
+    except Exception:
+        fallback_confdir = Path(tempfile.gettempdir()) / "simple-firewall-mitmproxy"
+        fallback_confdir.mkdir(parents=True, exist_ok=True)
+        return str(fallback_confdir)
+
+
 def add_traffic_entry(entry: Dict[str, Any]):
     protocol = entry.get('protocol', 'UNKNOWN')
     direction = entry.get('direction', 'UNKNOWN')
@@ -138,11 +170,13 @@ def add_traffic_entry(entry: Dict[str, Any]):
         if len(traffic_log) > MAX_LOG_SIZE:
             traffic_log.pop()
 
-        if clients:
+        if clients and main_event_loop and main_event_loop.is_running():
             message = json.dumps({"type": "new_packet", "data": entry})
-            loop = asyncio.get_event_loop()
             for client in list(clients):
-                asyncio.run_coroutine_threadsafe(safe_send(client, message), loop)
+                asyncio.run_coroutine_threadsafe(
+                    safe_send(client, message),
+                    main_event_loop
+                )
 
 
 async def safe_send(websocket: WebSocket, message: str):
@@ -221,16 +255,37 @@ class TrafficAddon:
 # ================= 后台任务 =================
 
 async def run_mitm_async():
+    master: Optional[DumpMaster] = None
     try:
-        opts = options.Options(listen_port=8080, mode=["regular"], ssl_insecure=True)
-        master = DumpMaster(opts, with_termlog=False, with_dumper=False)
+        if not is_port_available(8080):
+            print("❌ MitmProxy 启动失败：端口 8080 被占用或无权限。请释放端口后重试。")
+            return
+
+        mitm_confdir = resolve_mitm_confdir()
+        print(f"🔐 MitmProxy 证书目录：{mitm_confdir}")
+
+        opts = options.Options(
+            listen_port=8080,
+            mode=["regular"],
+            ssl_insecure=True,
+            confdir=mitm_confdir,
+        )
+        master = DumpMaster(opts, with_termlog=True, with_dumper=False)
         master.addons.add(TrafficAddon())
         print("✅ MitmProxy 引擎已启动...")
         await master.run()
-    except Exception as e:
-        print(f"❌ MitmProxy 严重错误：{e}")
+    except asyncio.CancelledError:
+        pass
+    except BaseException as e:
+        print(f"❌ MitmProxy 严重错误（{type(e).__name__}）：{e}")
         import traceback
         traceback.print_exc()
+    finally:
+        if master is not None:
+            try:
+                master.shutdown()
+            except Exception:
+                pass
 
 
 async def sniff_non_http_async():
@@ -288,6 +343,8 @@ async def sniff_non_http_async():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global main_event_loop
+    main_event_loop = asyncio.get_running_loop()
     t1 = asyncio.create_task(run_mitm_async())
     t2 = asyncio.create_task(sniff_non_http_async())
     yield
@@ -345,6 +402,11 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     with clients_lock:
         clients.append(websocket)
+        snapshot = list(traffic_log[:100])
+
+    for item in reversed(snapshot):
+        await safe_send(websocket, json.dumps({"type": "new_packet", "data": item}))
+
     try:
         while True:
             await websocket.receive_text()
